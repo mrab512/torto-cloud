@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Torto Cloud</title>
+
+    <style>
+        body { font-family: 'Segoe UI'; background: #f4f6f9; margin: 0; }
+
+        .header {
+            background: #111827;
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .btn {
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-left: 10px;
+            color: white;
+            font-size: 12px;
+        }
+
+        .blue { background: #3b82f6; }
+
+        .container { padding: 20px; }
+
+        .stats {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            flex: 1;
+        }
+
+        .device {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+        }
+
+        .online { color: green; }
+        .offline { color: red; }
+
+        .device-actions {
+            float: right;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top:0; left:0;
+            width:100%; height:100%;
+            background: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 20px;
+            width: 400px;
+            border-radius: 10px;
+        }
+
+        .bar {
+            height: 12px;
+            background: #ddd;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+
+        .fill {
+            height: 100%;
+            border-radius: 6px;
+        }
+
+        .cpu { background: red; }
+        .ram { background: blue; }
+        .disk { background: green; }
+    </style>
+</head>
+
+<body>
+
+<div class="header">
+    <div>🚀 Torto Cloud</div>
+    <div>
+        <span class="btn blue">Logs</span>
+    </div>
+</div>
+
+<div class="container">
+
+    <div class="stats">
+        <div class="stat-box">🟢 Active: <span id="active">0</span></div>
+        <div class="stat-box">🔴 Offline: <span id="offline">0</span></div>
+        <div class="stat-box">🌍 Region: Local</div>
+        <div class="stat-box">⏰ <span id="time"></span></div>
+    </div>
+
+    <div id="devices"></div>
+</div>
+
+<div id="popup" class="modal">
+    <div class="modal-content">
+        <span onclick="closePopup()">❌</span>
+        <div id="popupData"></div>
+    </div>
+</div>
+
+<script>
+
+let devicesData = {};
+let customNames = {}; // NEW
+
+async function loadDevices() {
+    const res = await fetch('/devices');
+    const data = await res.json();
+    devicesData = data;
+
+    let html = '';
+    let active = 0, offline = 0;
+
+    for (let id in data) {
+        const d = data[id];
+
+        const cpu = d.metrics?.cpu || 0;
+        const ram = d.metrics?.ram || 0;
+        const disk = d.metrics?.disk || 0;
+
+        if (d.status === "online") active++;
+        else offline++;
+
+        const displayName = customNames[id] || id;
+
+        html += `
+            <div class="device">
+                
+                <div class="device-actions">
+                    <span class="btn blue" onclick="editName('${id}')">Edit</span>
+                    <span class="btn blue" onclick="openPopup('${id}')">View</span>
+                </div>
+
+                <b>${displayName}</b> 
+                <span class="${d.status}">(${d.status})</span>
+                <br>
+                CPU: ${cpu}% | RAM: ${ram}% | Disk: ${disk}%
+            </div>
+        `;
+    }
+
+    document.getElementById('devices').innerHTML = html;
+    document.getElementById('active').innerText = active;
+    document.getElementById('offline').innerText = offline;
+}
+
+// EDIT NAME
+function editName(id) {
+    const newName = prompt("Enter new device name:");
+    if (!newName) return;
+
+    customNames[id] = newName;
+    loadDevices();
+}
+
+// POPUP
+function openPopup(id) {
+    const d = devicesData[id];
+
+    const cpu = d.metrics?.cpu || 0;
+    const ram = d.metrics?.ram || 0;
+    const disk = d.metrics?.disk || 0;
+
+    document.getElementById('popupData').innerHTML = `
+        <h2>${customNames[id] || id}</h2>
+        <p>Status: ${d.status}</p>
+
+        CPU ${cpu}%
+        <div class="bar"><div class="fill cpu" style="width:${cpu}%"></div></div>
+
+        RAM ${ram}%
+        <div class="bar"><div class="fill ram" style="width:${ram}%"></div></div>
+
+        Disk ${disk}%
+        <div class="bar"><div class="fill disk" style="width:${disk}%"></div></div>
+    `;
+
+    document.getElementById('popup').style.display = "block";
+}
+
+function closePopup() {
+    document.getElementById('popup').style.display = "none";
+}
+
+setInterval(() => {
+    document.getElementById('time').innerText = new Date().toLocaleString();
+}, 1000);
+
+setInterval(loadDevices, 3000);
+loadDevices();
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Device Details</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #f5f6fa;
+            padding: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .alert {
+            background: red;
+            color: white;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Device Details</h1>
+    <button onclick="goBack()">⬅ Back</button>
+
+    <div id="alertBox" class="alert">🚨 CPU above 50%!</div>
+
+    <div id="device" class="card"></div>
+
+    <canvas id="cpuChart"></canvas>
+
+    <script>
+        const deviceId = localStorage.getItem("selectedDevice");
+
+        function goBack() {
+            window.location.href = "index.html";
+        }
+
+        let alertShown = false;
+
+        const ctx = document.getElementById('cpuChart').getContext('2d');
+
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'CPU Usage (%)',
+                    data: [],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+
+        async function loadDevice() {
+            const res = await fetch('http://localhost:3000/devices');
+            const data = await res.json();
+
+            const d = data[deviceId];
+
+            if (!d) return;
+
+            let cpu = d.metrics?.cpu || 0;
+            let ram = d.metrics?.ram || 0;
+            let disk = d.metrics?.disk || 0;
+
+            document.getElementById('device').innerHTML = `
+                <h2>${deviceId}</h2>
+                <p>Status: ${d.status}</p>
+                <p>Last Seen: ${d.lastSeen}</p>
+                <p>CPU: ${cpu}%</p>
+                <p>RAM: ${ram}%</p>
+                <p>Disk: ${disk}%</p>
+            `;
+
+            // 🔔 ALERT LOGIC (50%)
+            if (cpu > 50 && !alertShown) {
+                document.getElementById("alertBox").style.display = "block";
+                alertShown = true;
+            }
+
+            if (cpu <= 50) {
+                document.getElementById("alertBox").style.display = "none";
+                alertShown = false;
+            }
+
+            // 📊 GRAPH
+            if (chart.data.labels.length > 10) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+            }
+
+            chart.data.labels.push(new Date().toLocaleTimeString());
+            chart.data.datasets[0].data.push(cpu);
+
+            chart.update();
+        }
+
+        setInterval(loadDevice, 3000);
+        loadDevice();
+    </script>
+
+</body>
+</html>
