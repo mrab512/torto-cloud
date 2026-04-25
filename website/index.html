@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Torto Cloud</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(180deg, #020617, #0f172a);
+    color: white;
+}
+
+/* NAV */
+.nav {
+    display: flex;
+    justify-content: space-between;
+    padding: 20px 40px;
+}
+
+.logo { font-weight: 600; }
+
+.btn {
+    background: #22c55e;
+    padding: 10px 16px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: white;
+}
+
+/* HERO */
+.hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 20px;
+    gap: 40px;
+}
+
+.hero-text {
+    max-width: 500px;
+}
+
+.hero h1 {
+    font-size: 48px;
+}
+
+.hero p {
+    color: #94a3b8;
+}
+
+.cta {
+    margin-top: 20px;
+}
+
+/* DASHBOARD MOCK */
+.dashboard {
+    background: #111827;
+    padding: 20px;
+    border-radius: 12px;
+    width: 350px;
+}
+
+.device {
+    background: #1e293b;
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+}
+
+.bar {
+    height: 8px;
+    background: #334155;
+    border-radius: 5px;
+}
+
+.fill {
+    height: 100%;
+    border-radius: 5px;
+}
+
+.cpu { background: #ef4444; }
+.ram { background: #3b82f6; }
+.disk { background: #22c55e; }
+
+/* FEATURES */
+.features {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 60px 20px;
+}
+
+.card {
+    background: #1e293b;
+    padding: 25px;
+    border-radius: 12px;
+    width: 250px;
+    text-align: center;
+}
+
+/* ADD DEVICE SECTION */
+.add-device {
+    text-align: center;
+    padding: 80px 20px;
+}
+
+.add-box {
+    background: #1e293b;
+    padding: 40px;
+    border-radius: 12px;
+    max-width: 500px;
+    margin: auto;
+}
+
+/* FOOTER */
+.footer {
+    text-align: center;
+    padding: 40px;
+    color: #94a3b8;
+}
+</style>
+</head>
+
+<body>
+
+<!-- NAV -->
+<div class="nav">
+    <div class="logo">🚀 Torto Cloud</div>
+    <a class="btn" href="#add">Add Device</a>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+
+    <div class="hero-text">
+        <h1>Monitor Every Device. In Real-Time.</h1>
+        <p>
+            Track CPU, RAM, and system health across all your machines
+            with a simple, powerful dashboard.
+        </p>
+
+        <div class="cta">
+            <a class="btn" href="#add">Add Your Device</a>
+        </div>
+    </div>
+
+    <!-- MOCK DASHBOARD -->
+    <div class="dashboard">
+        <div class="device">
+            Device-01 (Online)
+            <div class="bar"><div id="cpu1" class="fill cpu" style="width:60%"></div></div>
+        </div>
+
+        <div class="device">
+            Device-02 (Online)
+            <div class="bar"><div id="cpu2" class="fill cpu" style="width:30%"></div></div>
+        </div>
+
+        <div class="device">
+            Device-03 (Offline)
+            <div class="bar"><div id="cpu3" class="fill cpu" style="width:80%"></div></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- FEATURES -->
+<div class="features">
+
+    <div class="card">
+        <h3>⚡ Live Monitoring</h3>
+        <p>Real-time system tracking</p>
+    </div>
+
+    <div class="card">
+        <h3>🔔 Alerts</h3>
+        <p>Detect issues instantly</p>
+    </div>
+
+    <div class="card">
+        <h3>🌐 Multi Device</h3>
+        <p>One dashboard for all</p>
+    </div>
+
+    <div class="card">
+        <h3>⚙️ Lightweight</h3>
+        <p>Fast & efficient agent</p>
+    </div>
+
+</div>
+
+<!-- ADD DEVICE -->
+<div id="add" class="add-device">
+    <h2>Add Your Device</h2>
+
+    <div class="add-box">
+        <p>Run the agent on your machine to start monitoring instantly.</p>
+
+        <div class="btn">Download Agent</div>
+
+        <p style="margin-top:20px;color:#94a3b8;">
+            Works on Windows • Simple Setup • No Config Needed
+        </p>
+    </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+    © 2026 Torto Cloud — Real-Time Monitoring Platform
+</div>
+
+<script>
+// Animate bars
+function animateBars() {
+    document.getElementById("cpu1").style.width = Math.random()*100 + "%";
+    document.getElementById("cpu2").style.width = Math.random()*100 + "%";
+    document.getElementById("cpu3").style.width = Math.random()*100 + "%";
+}
+setInterval(animateBars, 2000);
+</script>
+
+</body>
+</html>
