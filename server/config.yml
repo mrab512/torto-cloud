@@ -1,0 +1,7 @@
+tunnel: torto-tunnel
+credentials-file: C:\Users\91865\.cloudflared\torto-tunnel.json
+
+ingress:
+  - hostname: torto.cloud
+    service: http://localhost:3000
+  - service: http_status:404

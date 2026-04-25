@@ -1,57 +1,103 @@
-import express from 'express';
-import bodyParser from 'body-parser';
+const express = require("express");
+const cors = require("cors");
+const path = require("path");
+const PocketBase = require("pocketbase/cjs");
 
 const app = express();
-const PORT = 3000;
+app.use(cors());
+app.use(express.json());
 
-app.use(express.static('public'));
-app.use(bodyParser.json());
+// ---------------- DB ----------------
+const pb = new PocketBase("http://127.0.0.1:8090");
 
-let devices = {};
+// ---------------- SERVE FRONTEND ----------------
+app.use(express.static(path.join(__dirname, "public")));
 
-// REGISTER
-app.post('/register', (req, res) => {
-    const { deviceId } = req.body;
-
-    devices[deviceId] = {
-        deviceId,
-        status: 'online',
-        lastSeen: new Date(),
-        metrics: { cpu: 0, ram: 0, disk: 0 }
-    };
-
-    console.log("✅ Registered:", deviceId);
-    res.json({ success: true });
+// ---------------- ROOT ----------------
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// HEARTBEAT
-app.post('/heartbeat', (req, res) => {
-    const { deviceId, metrics } = req.body;
+// ---------------- GET DEVICES ----------------
+app.get("/devices", async (req, res) => {
+  try {
+    const devices = await pb.collection("devices").getFullList({
+      sort: "-updated"
+    });
+    res.json({ items: devices });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch devices" });
+  }
+});
 
-    if (!devices[deviceId]) {
-        return res.status(404).json({ error: "Device not registered" });
+// ---------------- HEARTBEAT ----------------
+app.post("/heartbeat", async (req, res) => {
+  const { deviceId, cpu, ram, disk } = req.body;
+
+  try {
+    const existing = await pb.collection("devices").getList(1, 1, {
+      filter: `deviceId="${deviceId}"`
+    });
+
+    if (existing.items.length > 0) {
+      const id = existing.items[0].id;
+
+      await pb.collection("devices").update(id, {
+        cpu: Number(cpu),
+        ram: Number(ram),
+        disk: Number(disk),
+        status: "online",
+        lastSeen: new Date().toISOString()
+      });
+
+    } else {
+      await pb.collection("devices").create({
+        deviceId,
+        cpu: Number(cpu),
+        ram: Number(ram),
+        disk: Number(disk),
+        status: "online",
+        lastSeen: new Date().toISOString()
+      });
     }
 
-    devices[deviceId].metrics = metrics;
-    devices[deviceId].lastSeen = new Date();
+    // store metrics history
+    await pb.collection("metrics").create({
+      deviceId,
+      cpu: Number(cpu),
+      ram: Number(ram),
+      disk: Number(disk),
+      timestamp: new Date().toISOString()
+    });
 
-    console.log("🔥 Heartbeat:", deviceId, metrics);
     res.json({ success: true });
+
+  } catch (err) {
+    console.error("Heartbeat error:", err);
+    res.status(500).json({ error: "Heartbeat failed" });
+  }
 });
 
-// DELETE DEVICE
-app.post('/delete', (req, res) => {
-    const { deviceId } = req.body;
-    delete devices[deviceId];
-    console.log("🗑 Deleted:", deviceId);
-    res.json({ success: true });
+// ---------------- GET METRICS ----------------
+app.get("/metrics/:deviceId", async (req, res) => {
+  const { deviceId } = req.params;
+
+  try {
+    const metrics = await pb.collection("metrics").getFullList({
+      filter: `deviceId="${deviceId}"`,
+      sort: "-timestamp"
+    });
+
+    res.json({ items: metrics });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch metrics" });
+  }
 });
 
-// GET DEVICES (IMPORTANT FORMAT FOR YOUR UI)
-app.get('/devices', (req, res) => {
-    res.json(devices);
-});
-
-app.listen(PORT, () => {
-    console.log(`🚀 Server running at http://localhost:${PORT}`);
+// ---------------- START SERVER ----------------
+app.listen(3000, () => {
+  console.log("✅ Server running at http://localhost:3000");
 });

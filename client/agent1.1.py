@@ -1,51 +1,34 @@
 import requests
-import time
 import psutil
 import socket
+import time
 
-SERVER_URL = "http://localhost:3000"
+SERVER = "http://localhost:3000"
+DEVICE_ID = socket.gethostname()
 
-device_id = socket.gethostname()
+def get_cpu():
+    return psutil.cpu_percent(interval=1)
 
-def safe_post(url, payload):
-    try:
-        r = requests.post(url, json=payload, timeout=5)
-        return r.status_code, r.text
-    except Exception as e:
-        return None, str(e)
+def get_ram():
+    return psutil.virtual_memory().percent
 
-# REGISTER
-while True:
-    status, resp = safe_post(f"{SERVER_URL}/register", {"deviceId": device_id})
-    if status and 200 <= status < 300:
-        print("✅ Registered:", device_id)
-        break
-    else:
-        print("❌ Register failed:", resp)
-        time.sleep(3)
+def get_disk():
+    return psutil.disk_usage('/').percent
 
-def get_metrics():
-    return {
-        "cpu": psutil.cpu_percent(interval=1),
-        "ram": psutil.virtual_memory().percent,
-        "disk": psutil.disk_usage('/').percent
+def send_heartbeat():
+    data = {
+        "deviceId": DEVICE_ID,
+        "cpu": get_cpu(),
+        "ram": get_ram(),
+        "disk": get_disk()
     }
 
-# HEARTBEAT LOOP
+    try:
+        response = requests.post(f"{SERVER}/heartbeat", json=data)
+        print("Heartbeat sent:", data)
+    except Exception as e:
+        print("Error sending heartbeat:", e)
+
 while True:
-    metrics = get_metrics()
-
-    status, resp = safe_post(
-        f"{SERVER_URL}/heartbeat",
-        {
-            "deviceId": device_id,
-            "metrics": metrics
-        }
-    )
-
-    if status and 200 <= status < 300:
-        print("🔥 Heartbeat OK:", metrics)
-    else:
-        print("❌ Heartbeat FAIL:", resp)
-
+    send_heartbeat()
     time.sleep(5)

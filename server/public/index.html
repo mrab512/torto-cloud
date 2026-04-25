@@ -1,212 +1,136 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Torto Cloud</title>
+  <title>Torto Cloud</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <style>
-        body { font-family: 'Segoe UI'; background: #f4f6f9; margin: 0; }
+  <style>
+    body {
+      font-family: Arial;
+      background: #0f172a;
+      color: white;
+      padding: 20px;
+    }
 
-        .header {
-            background: #111827;
-            color: white;
-            padding: 15px 30px;
-            display: flex;
-            justify-content: space-between;
-        }
+    h1 {
+      margin-bottom: 20px;
+    }
 
-        .btn {
-            padding: 6px 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            margin-left: 10px;
-            color: white;
-            font-size: 12px;
-        }
+    .card {
+      background: #1e293b;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 10px;
+    }
 
-        .blue { background: #3b82f6; }
+    button {
+      margin-top: 10px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
 
-        .container { padding: 20px; }
-
-        .stats {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .stat-box {
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
-            flex: 1;
-        }
-
-        .device {
-            background: white;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 10px;
-        }
-
-        .online { color: green; }
-        .offline { color: red; }
-
-        .device-actions {
-            float: right;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top:0; left:0;
-            width:100%; height:100%;
-            background: rgba(0,0,0,0.5);
-        }
-
-        .modal-content {
-            background: white;
-            margin: 5% auto;
-            padding: 20px;
-            width: 400px;
-            border-radius: 10px;
-        }
-
-        .bar {
-            height: 12px;
-            background: #ddd;
-            border-radius: 6px;
-            margin-bottom: 10px;
-        }
-
-        .fill {
-            height: 100%;
-            border-radius: 6px;
-        }
-
-        .cpu { background: red; }
-        .ram { background: blue; }
-        .disk { background: green; }
-    </style>
+    canvas {
+      margin-top: 20px;
+      background: white;
+      border-radius: 10px;
+      padding: 10px;
+    }
+  </style>
 </head>
 
 <body>
 
-<div class="header">
-    <div>🚀 Torto Cloud</div>
-    <div>
-        <span class="btn blue">Logs</span>
-    </div>
-</div>
+<h1>🚀 Torto Cloud Dashboard</h1>
 
-<div class="container">
+<div id="devices"></div>
 
-    <div class="stats">
-        <div class="stat-box">🟢 Active: <span id="active">0</span></div>
-        <div class="stat-box">🔴 Offline: <span id="offline">0</span></div>
-        <div class="stat-box">🌍 Region: Local</div>
-        <div class="stat-box">⏰ <span id="time"></span></div>
-    </div>
-
-    <div id="devices"></div>
-</div>
-
-<div id="popup" class="modal">
-    <div class="modal-content">
-        <span onclick="closePopup()">❌</span>
-        <div id="popupData"></div>
-    </div>
-</div>
+<h2>📊 Metrics</h2>
+<canvas id="cpuChart"></canvas>
+<canvas id="ramChart"></canvas>
+<canvas id="diskChart"></canvas>
 
 <script>
+let selectedDevice = null;
 
-let devicesData = {};
-let customNames = {}; // NEW
-
+// ---------------- LOAD DEVICES ----------------
 async function loadDevices() {
-    const res = await fetch('/devices');
-    const data = await res.json();
-    devicesData = data;
+  const res = await fetch("/devices");
+  const data = await res.json();
 
-    let html = '';
-    let active = 0, offline = 0;
+  const container = document.getElementById("devices");
+  container.innerHTML = "";
 
-    for (let id in data) {
-        const d = data[id];
+  data.items.forEach(d => {
+    const div = document.createElement("div");
+    div.className = "card";
 
-        const cpu = d.metrics?.cpu || 0;
-        const ram = d.metrics?.ram || 0;
-        const disk = d.metrics?.disk || 0;
-
-        if (d.status === "online") active++;
-        else offline++;
-
-        const displayName = customNames[id] || id;
-
-        html += `
-            <div class="device">
-                
-                <div class="device-actions">
-                    <span class="btn blue" onclick="editName('${id}')">Edit</span>
-                    <span class="btn blue" onclick="openPopup('${id}')">View</span>
-                </div>
-
-                <b>${displayName}</b> 
-                <span class="${d.status}">(${d.status})</span>
-                <br>
-                CPU: ${cpu}% | RAM: ${ram}% | Disk: ${disk}%
-            </div>
-        `;
-    }
-
-    document.getElementById('devices').innerHTML = html;
-    document.getElementById('active').innerText = active;
-    document.getElementById('offline').innerText = offline;
-}
-
-// EDIT NAME
-function editName(id) {
-    const newName = prompt("Enter new device name:");
-    if (!newName) return;
-
-    customNames[id] = newName;
-    loadDevices();
-}
-
-// POPUP
-function openPopup(id) {
-    const d = devicesData[id];
-
-    const cpu = d.metrics?.cpu || 0;
-    const ram = d.metrics?.ram || 0;
-    const disk = d.metrics?.disk || 0;
-
-    document.getElementById('popupData').innerHTML = `
-        <h2>${customNames[id] || id}</h2>
-        <p>Status: ${d.status}</p>
-
-        CPU ${cpu}%
-        <div class="bar"><div class="fill cpu" style="width:${cpu}%"></div></div>
-
-        RAM ${ram}%
-        <div class="bar"><div class="fill ram" style="width:${ram}%"></div></div>
-
-        Disk ${disk}%
-        <div class="bar"><div class="fill disk" style="width:${disk}%"></div></div>
+    div.innerHTML = `
+      <b>${d.deviceId}</b><br>
+      CPU: ${d.cpu}% | RAM: ${d.ram}% | Disk: ${d.disk}%<br>
+      <button onclick="selectDevice('${d.deviceId}')">View Graph</button>
     `;
 
-    document.getElementById('popup').style.display = "block";
+    container.appendChild(div);
+  });
 }
 
-function closePopup() {
-    document.getElementById('popup').style.display = "none";
+// ---------------- SELECT DEVICE ----------------
+function selectDevice(id) {
+  selectedDevice = id;
+  loadMetrics();
 }
 
+// ---------------- CREATE CHARTS ----------------
+const cpuChart = new Chart(document.getElementById("cpuChart"), {
+  type: "line",
+  data: { labels: [], datasets: [{ label: "CPU %", data: [] }] }
+});
+
+const ramChart = new Chart(document.getElementById("ramChart"), {
+  type: "line",
+  data: { labels: [], datasets: [{ label: "RAM %", data: [] }] }
+});
+
+const diskChart = new Chart(document.getElementById("diskChart"), {
+  type: "line",
+  data: { labels: [], datasets: [{ label: "Disk %", data: [] }] }
+});
+
+// ---------------- LOAD METRICS ----------------
+async function loadMetrics() {
+  if (!selectedDevice) return;
+
+  const res = await fetch(`/metrics/${selectedDevice}`);
+  const data = await res.json();
+
+  const items = data.items.reverse();
+
+  const labels = items.map(i =>
+    new Date(i.timestamp).toLocaleTimeString()
+  );
+
+  cpuChart.data.labels = labels;
+  cpuChart.data.datasets[0].data = items.map(i => i.cpu);
+
+  ramChart.data.labels = labels;
+  ramChart.data.datasets[0].data = items.map(i => i.ram);
+
+  diskChart.data.labels = labels;
+  diskChart.data.datasets[0].data = items.map(i => i.disk);
+
+  cpuChart.update();
+  ramChart.update();
+  diskChart.update();
+}
+
+// ---------------- AUTO REFRESH ----------------
 setInterval(() => {
-    document.getElementById('time').innerText = new Date().toLocaleString();
-}, 1000);
+  loadDevices();
+  loadMetrics();
+}, 5000);
 
-setInterval(loadDevices, 3000);
+// initial load
 loadDevices();
-
 </script>
 
 </body>
