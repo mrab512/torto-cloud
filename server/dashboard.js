@@ -1,103 +1,170 @@
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
-const PocketBase = require("pocketbase/cjs");
+
+const fetch = global.fetch;
 
 const app = express();
-app.use(cors());
 app.use(express.json());
+app.use(cors());
 
-// ---------------- DB ----------------
-const pb = new PocketBase("http://127.0.0.1:8090");
+const PB_URL = "http://127.0.0.1:8090";
 
-// ---------------- SERVE FRONTEND ----------------
-app.use(express.static(path.join(__dirname, "public")));
+/* SERVE FRONTEND */
+app.use(express.static(path.join(__dirname, "../public")));
 
-// ---------------- ROOT ----------------
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+/* LOGIN */
+app.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  const response = await fetch(`${PB_URL}/api/collections/users/auth-with-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      identity: email,
+      password: password
+    })
+  });
+
+  const data = await response.json();
+  if (!response.ok) return res.status(400).json(data);
+
+  res.json(data);
 });
 
-// ---------------- GET DEVICES ----------------
-app.get("/devices", async (req, res) => {
-  try {
-    const devices = await pb.collection("devices").getFullList({
-      sort: "-updated"
-    });
-    res.json({ items: devices });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch devices" });
-  }
+/* GENERATE KEY */
+app.post("/generate-key", async (req, res) => {
+  const token = req.headers.authorization;
+
+  const apiKey = Math.random().toString(36).substring(2, 18);
+
+  const userRes = await fetch(`${PB_URL}/api/collections/users/records`, {
+    headers: { Authorization: token }
+  });
+
+  const userData = await userRes.json();
+  const user = userData.items[0];
+
+  await fetch(`${PB_URL}/api/collections/users/records/${user.id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: token
+    },
+    body: JSON.stringify({ apiKey })
+  });
+
+  res.json({ apiKey });
 });
 
-// ---------------- HEARTBEAT ----------------
+/* HEARTBEAT */
 app.post("/heartbeat", async (req, res) => {
-  const { deviceId, cpu, ram, disk } = req.body;
+  const { apiKey, cpu, ram, disk, deviceId } = req.body;
 
-  try {
-    const existing = await pb.collection("devices").getList(1, 1, {
-      filter: `deviceId="${deviceId}"`
-    });
+  const usersRes = await fetch(`${PB_URL}/api/collections/users/records?filter=apiKey="${apiKey}"`);
+  const usersData = await usersRes.json();
 
-    if (existing.items.length > 0) {
-      const id = existing.items[0].id;
+  if (usersData.items.length === 0) {
+    return res.status(401).json({ error: "Invalid API key" });
+  }
 
-      await pb.collection("devices").update(id, {
-        cpu: Number(cpu),
-        ram: Number(ram),
-        disk: Number(disk),
-        status: "online",
-        lastSeen: new Date().toISOString()
-      });
+  const user = usersData.items[0];
 
-    } else {
-      await pb.collection("devices").create({
+  const devicesRes = await fetch(
+    `${PB_URL}/api/collections/devices/records?filter=deviceId="${deviceId}"`
+  );
+  const devicesData = await devicesRes.json();
+
+  if (devicesData.items.length === 0) {
+    await fetch(`${PB_URL}/api/collections/devices/records`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         deviceId,
-        cpu: Number(cpu),
-        ram: Number(ram),
-        disk: Number(disk),
+        status: "online",
+        cpu,
+        ram,
+        disk,
+        lastSeen: new Date().toISOString(),
+        apiKey,
+        userId: user.id
+      })
+    });
+  } else {
+    const existing = devicesData.items[0];
+
+    await fetch(`${PB_URL}/api/collections/devices/records/${existing.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cpu,
+        ram,
+        disk,
         status: "online",
         lastSeen: new Date().toISOString()
-      });
+      })
+    });
+  }
+
+  /* METRICS HISTORY */
+  await fetch(`${PB_URL}/api/collections/metrics/records`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      deviceId,
+      cpu,
+      ram,
+      disk,
+      timestamp: new Date().toISOString()
+    })
+  });
+
+  res.json({ success: true });
+});
+
+/* DEVICES (WITH OFFLINE + ALERT) */
+app.get("/devices", async (req, res) => {
+  const token = req.headers.authorization;
+
+  const userRes = await fetch(`${PB_URL}/api/collections/users/records`, {
+    headers: { Authorization: token }
+  });
+
+  const userData = await userRes.json();
+  const user = userData.items[0];
+
+  const devicesRes = await fetch(
+    `${PB_URL}/api/collections/devices/records?filter=userId="${user.id}"`
+  );
+
+  const devicesData = await devicesRes.json();
+
+  const now = new Date();
+
+  const updatedDevices = devicesData.items.map(d => {
+    const lastSeen = new Date(d.lastSeen);
+    const diff = (now - lastSeen) / 1000;
+
+    let status = diff > 15 ? "offline" : "online";
+
+    let alert = "";
+
+    if (status === "online") {
+      if (d.cpu > 2) alert = "⚠ High CPU";
+      if (d.ram > 90) alert = "⚠ High RAM";
     }
 
-    // store metrics history
-    await pb.collection("metrics").create({
-      deviceId,
-      cpu: Number(cpu),
-      ram: Number(ram),
-      disk: Number(disk),
-      timestamp: new Date().toISOString()
-    });
+    return {
+      ...d,
+      status,
+      alert
+    };
+  });
 
-    res.json({ success: true });
-
-  } catch (err) {
-    console.error("Heartbeat error:", err);
-    res.status(500).json({ error: "Heartbeat failed" });
-  }
+  res.json(updatedDevices);
 });
 
-// ---------------- GET METRICS ----------------
-app.get("/metrics/:deviceId", async (req, res) => {
-  const { deviceId } = req.params;
-
-  try {
-    const metrics = await pb.collection("metrics").getFullList({
-      filter: `deviceId="${deviceId}"`,
-      sort: "-timestamp"
-    });
-
-    res.json({ items: metrics });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch metrics" });
-  }
-});
-
-// ---------------- START SERVER ----------------
+/* START SERVER */
 app.listen(3000, () => {
-  console.log("✅ Server running at http://localhost:3000");
+  console.log("Server running at http://localhost:3000");
 });

@@ -2,135 +2,108 @@
 <html>
 <head>
   <title>Torto Cloud</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
   <style>
-    body {
-      font-family: Arial;
-      background: #0f172a;
-      color: white;
-      padding: 20px;
+    body { font-family: Arial; margin: 20px; }
+    h2 { margin-top: 20px; }
+
+    .device {
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 8px;
+      border: 1px solid #ccc;
     }
 
-    h1 {
-      margin-bottom: 20px;
-    }
-
-    .card {
-      background: #1e293b;
-      padding: 15px;
-      margin: 10px 0;
-      border-radius: 10px;
-    }
-
-    button {
-      margin-top: 10px;
-      padding: 5px 10px;
-      cursor: pointer;
-    }
-
-    canvas {
-      margin-top: 20px;
-      background: white;
-      border-radius: 10px;
-      padding: 10px;
-    }
+    .online { background: #e6ffed; }
+    .offline { background: #ffe6e6; }
   </style>
 </head>
-
 <body>
 
-<h1>🚀 Torto Cloud Dashboard</h1>
+<h1>Torto Cloud Dashboard</h1>
 
+<h3>Login</h3>
+<input id="email" placeholder="Email" />
+<input id="password" type="password" placeholder="Password" />
+<button onclick="login()">Login</button>
+
+<h3>API Key</h3>
+<button onclick="generateKey()">Generate API Key</button>
+<p id="apikey"></p>
+
+<h3>Devices</h3>
 <div id="devices"></div>
 
-<h2>📊 Metrics</h2>
-<canvas id="cpuChart"></canvas>
-<canvas id="ramChart"></canvas>
-<canvas id="diskChart"></canvas>
-
 <script>
-let selectedDevice = null;
+let token = "";
 
-// ---------------- LOAD DEVICES ----------------
-async function loadDevices() {
-  const res = await fetch("/devices");
+/* LOGIN */
+async function login() {
+  const res = await fetch("/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: document.getElementById("email").value,
+      password: document.getElementById("password").value
+    })
+  });
+
   const data = await res.json();
+  token = data.token;
+
+  alert("Login success");
+  loadDevices();
+}
+
+/* GENERATE KEY */
+async function generateKey() {
+  const res = await fetch("/generate-key", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token
+    }
+  });
+
+  const data = await res.json();
+  document.getElementById("apikey").innerText = data.apiKey;
+}
+
+/* LOAD DEVICES */
+async function loadDevices() {
+  if (!token) return;
+
+  const res = await fetch("/devices", {
+    headers: { "Authorization": token }
+  });
+
+  const devices = await res.json();
+
+  console.log("Devices:", devices); // DEBUG
 
   const container = document.getElementById("devices");
   container.innerHTML = "";
 
-  data.items.forEach(d => {
+  devices.forEach(d => {
     const div = document.createElement("div");
-    div.className = "card";
+
+    div.className = "device " + d.status;
 
     div.innerHTML = `
       <b>${d.deviceId}</b><br>
       CPU: ${d.cpu}% | RAM: ${d.ram}% | Disk: ${d.disk}%<br>
-      <button onclick="selectDevice('${d.deviceId}')">View Graph</button>
+      Status: <b>${d.status}</b><br>
+      Last Seen: ${d.lastSeen}
     `;
 
     container.appendChild(div);
   });
 }
 
-// ---------------- SELECT DEVICE ----------------
-function selectDevice(id) {
-  selectedDevice = id;
-  loadMetrics();
-}
-
-// ---------------- CREATE CHARTS ----------------
-const cpuChart = new Chart(document.getElementById("cpuChart"), {
-  type: "line",
-  data: { labels: [], datasets: [{ label: "CPU %", data: [] }] }
-});
-
-const ramChart = new Chart(document.getElementById("ramChart"), {
-  type: "line",
-  data: { labels: [], datasets: [{ label: "RAM %", data: [] }] }
-});
-
-const diskChart = new Chart(document.getElementById("diskChart"), {
-  type: "line",
-  data: { labels: [], datasets: [{ label: "Disk %", data: [] }] }
-});
-
-// ---------------- LOAD METRICS ----------------
-async function loadMetrics() {
-  if (!selectedDevice) return;
-
-  const res = await fetch(`/metrics/${selectedDevice}`);
-  const data = await res.json();
-
-  const items = data.items.reverse();
-
-  const labels = items.map(i =>
-    new Date(i.timestamp).toLocaleTimeString()
-  );
-
-  cpuChart.data.labels = labels;
-  cpuChart.data.datasets[0].data = items.map(i => i.cpu);
-
-  ramChart.data.labels = labels;
-  ramChart.data.datasets[0].data = items.map(i => i.ram);
-
-  diskChart.data.labels = labels;
-  diskChart.data.datasets[0].data = items.map(i => i.disk);
-
-  cpuChart.update();
-  ramChart.update();
-  diskChart.update();
-}
-
-// ---------------- AUTO REFRESH ----------------
+/* AUTO REFRESH */
 setInterval(() => {
-  loadDevices();
-  loadMetrics();
+  if (token) loadDevices();
 }, 5000);
 
-// initial load
-loadDevices();
 </script>
 
 </body>
