@@ -1,23 +1,18 @@
- 
 # Node
 node_modules/
 
-# Python
-__pycache__/
-*.pyc
+# Env / secrets
+.env
+*.env
+apikey.txt
 
 # Logs
 *.log
 
-# Env
-.env
+# Database
+*.db
+pb_data/
 
-# OS files
+# OS junk
 .DS_Store
 Thumbs.db
-
-# Executables
-*.exe
-
-# Cloudflare
-.cloudflared/
